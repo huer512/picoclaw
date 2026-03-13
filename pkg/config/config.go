@@ -927,12 +927,17 @@ func expandHome(path string) string {
 	if path == "" {
 		return path
 	}
+	home, _ := os.UserHomeDir()
 	if path[0] == '~' {
-		home, _ := os.UserHomeDir()
 		if len(path) > 1 && path[1] == '/' {
 			return home + path[1:]
 		}
 		return home
+	}
+	// When config was written as root (e.g. on host), workspace may be /root/.picoclaw or /root/.picoclaw/workspace.
+	// In a container running as non-root (e.g. user picoclaw), replace /root with current home so we can write.
+	if home != "/root" && (path == "/root/.picoclaw" || strings.HasPrefix(path, "/root/.picoclaw/")) {
+		return home + path[len("/root"):]
 	}
 	return path
 }
