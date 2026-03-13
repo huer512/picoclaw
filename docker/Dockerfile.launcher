@@ -1,0 +1,39 @@
+# ============================================================
+# Stage 1: Build frontend (Vite)
+# ============================================================
+FROM node:24-alpine AS frontend
+WORKDIR /src/web/frontend
+COPY web/frontend/package.json web/frontend/pnpm-lock.yaml* ./
+RUN corepack enable pnpm && pnpm install --frozen-lockfile
+COPY web/frontend .
+RUN pnpm build:backend
+
+# ============================================================
+# Stage 2: Build launcher binary (Go, with embedded frontend)
+# ============================================================
+FROM golang:1.25-alpine AS builder
+RUN apk add --no-cache git make
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+COPY --from=frontend /src/web/backend/dist web/backend/dist/
+
+RUN make build-launcher
+
+# ============================================================
+# Stage 3: Minimal runtime image
+# ============================================================
+FROM alpine:3.23
+RUN apk add --no-cache ca-certificates tzdata curl
+
+COPY --from=builder /src/build/picoclaw-launcher /usr/local/bin/picoclaw-launcher
+
+RUN addgroup -g 1000 picoclaw && adduser -D -u 1000 -G picoclaw picoclaw
+USER picoclaw
+
+EXPOSE 18800 18790
+ENTRYPOINT ["picoclaw-launcher"]
+CMD ["-public", "-no-browser"]

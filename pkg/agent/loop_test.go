@@ -1166,3 +1166,39 @@ func TestResolveMediaRefs_UsesMetaContentType(t *testing.T) {
 		t.Fatalf("expected jpeg prefix, got %q", result[0].Media[0][:30])
 	}
 }
+
+func TestStripMinimaxThink(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		output string
+	}{
+		{"empty", "", ""},
+		{"no think", "Hello world", "Hello world"},
+		{"leading think only", "<think>reasoning</think>\nHello", "Hello"},
+		{"think with newlines", "<think>\nstep 1\nstep 2\n</think>\nAnswer: 42", "Answer: 42"},
+		{"multiple think blocks", "<think>a</think><think>b</think>\nAnswer", "Answer"},
+		{"only think", "<think>only</think>", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripMinimaxThink(tt.input)
+			if got != tt.output {
+				t.Errorf("stripMinimaxThink(%q) = %q, want %q", tt.input, got, tt.output)
+			}
+		})
+	}
+}
+
+func TestIsMinimaxModel(t *testing.T) {
+	for _, model := range []string{"minimax/MiniMax-M2.5", "minimax/foo", "MiniMax-M2", "MINIMAX"} {
+		if !isMinimaxModel(model) {
+			t.Errorf("isMinimaxModel(%q) = false, want true", model)
+		}
+	}
+	for _, model := range []string{"openai/gpt-4", "anthropic/claude", ""} {
+		if isMinimaxModel(model) {
+			t.Errorf("isMinimaxModel(%q) = true, want false", model)
+		}
+	}
+}

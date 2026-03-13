@@ -785,6 +785,12 @@ func (al *AgentLoop) runAgentLoop(
 		finalContent = opts.DefaultResponse
 	}
 
+	// 4.1 For Minimax: strip <think>...</think>
+	// before sending to channel / saving, so the user does not see internal thinking.
+	if isMinimaxModel(agent.Model) {
+		finalContent = stripMinimaxThink(finalContent)
+	}
+
 	// 5. Save final assistant message to session
 	agent.Sessions.AddMessage(opts.SessionKey, "assistant", finalContent)
 	agent.Sessions.Save(opts.SessionKey)
@@ -1277,6 +1283,26 @@ func (al *AgentLoop) runLLMIteration(
 	}
 
 	return finalContent, iteration, nil
+}
+
+// stripMinimaxThink removes a leading <think>...</think>
+// block from content. Used when sending Minimax AI response to channel so
+// the user does not see the model's internal thinking.
+func stripMinimaxThink(content string) string {
+	if content == "" {
+		return content
+	}
+	// Match <think>...</think>
+	// (non-greedy, allow newlines) and trim the result.
+	thinkBlock := regexp.MustCompile(`(?s)\s*<think>.*?</think>\s*`)
+	stripped := thinkBlock.ReplaceAllString(content, "")
+	return strings.TrimSpace(stripped)
+}
+
+// isMinimaxModel returns true if the model identifier is for Minimax.
+func isMinimaxModel(model string) bool {
+	lower := strings.ToLower(model)
+	return strings.Contains(lower, "minimax") || strings.HasPrefix(lower, "minimax/")
 }
 
 // selectCandidates returns the model candidates and resolved model name to use
