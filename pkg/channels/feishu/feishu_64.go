@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -368,13 +369,44 @@ func (c *FeishuChannel) handleMessageReceive(ctx context.Context, event *larkim.
 	content := extractContent(messageType, rawContent)
 
 	// Handle media messages (download and store)
+	store := c.GetMediaStore()
 	var mediaRefs []string
-	if store := c.GetMediaStore(); store != nil && messageID != "" {
+	if store != nil && messageID != "" {
 		mediaRefs = c.downloadInboundMedia(ctx, chatID, messageID, messageType, rawContent, store)
 	}
 
-	// Append media tags to content (like Telegram does)
-	content = appendMediaTags(content, messageType, mediaRefs)
+	// For non-image file/audio/video, use [file:path] style so the agent can use read_file
+	if store != nil && len(mediaRefs) > 0 &&
+		(messageType == larkim.MsgTypeFile || messageType == larkim.MsgTypeAudio || messageType == larkim.MsgTypeMedia) {
+		var tagName string
+		switch messageType {
+		case larkim.MsgTypeFile:
+			tagName = "file"
+		case larkim.MsgTypeAudio:
+			tagName = "audio"
+		case larkim.MsgTypeMedia:
+			tagName = "video"
+		default:
+			tagName = "attachment"
+		}
+		var parts []string
+		for _, ref := range mediaRefs {
+			if localPath, err := store.Resolve(ref); err == nil {
+				parts = append(parts, "["+tagName+":"+localPath+"]")
+			}
+		}
+		if len(parts) > 0 {
+			if content != "" {
+				content = content + " " + strings.Join(parts, " ")
+			} else {
+				content = strings.Join(parts, " ")
+			}
+		} else {
+			content = appendMediaTags(content, messageType, mediaRefs)
+		}
+	} else {
+		content = appendMediaTags(content, messageType, mediaRefs)
+	}
 
 	if content == "" {
 		content = "[empty message]"
