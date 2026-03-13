@@ -326,9 +326,9 @@ func expandHome(path string) string {
 		}
 		return home
 	}
-	// When config was written as root, path may be /root/.picoclaw/...; in container as non-root use current home.
-	if home != "/root" && (path == "/root/.picoclaw" || strings.HasPrefix(path, "/root/.picoclaw/")) {
-		return home + path[len("/root"):]
+	// Hardcode for Docker: always use /home/picoclaw/.picoclaw when path is /root/.picoclaw/...
+	if path == "/root/.picoclaw" || strings.HasPrefix(path, "/root/.picoclaw/") {
+		return "/home/picoclaw/.picoclaw" + path[len("/root/.picoclaw"):]
 	}
 	return path
 }

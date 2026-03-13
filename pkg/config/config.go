@@ -934,10 +934,9 @@ func expandHome(path string) string {
 		}
 		return home
 	}
-	// When config was written as root (e.g. on host), workspace may be /root/.picoclaw or /root/.picoclaw/workspace.
-	// In a container running as non-root (e.g. user picoclaw), replace /root with current home so we can write.
-	if home != "/root" && (path == "/root/.picoclaw" || strings.HasPrefix(path, "/root/.picoclaw/")) {
-		return home + path[len("/root"):]
+	// Hardcode for Docker: config from host often has /root/.picoclaw; container runs as picoclaw and must use /home/picoclaw/.picoclaw.
+	if path == "/root/.picoclaw" || strings.HasPrefix(path, "/root/.picoclaw/") {
+		return "/home/picoclaw/.picoclaw" + path[len("/root/.picoclaw"):]
 	}
 	return path
 }
