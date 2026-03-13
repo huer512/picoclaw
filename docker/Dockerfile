@@ -16,11 +16,16 @@ COPY . .
 RUN make build
 
 # ============================================================
-# Stage 2: Minimal runtime image
+# Stage 2: Minimal runtime image (with npm and Python for agent)
 # ============================================================
 FROM alpine:3.23
 
-RUN apk add --no-cache ca-certificates tzdata curl
+RUN apk add --no-cache \
+    ca-certificates tzdata curl \
+    nodejs npm \
+    python3 py3-pip && \
+    ln -sf python3 /usr/bin/python && \
+    ln -sf pip3 /usr/bin/pip
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
