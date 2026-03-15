@@ -458,7 +458,7 @@ func (cb *ContextBuilder) LoadBootstrapFiles() string {
 //
 // See: https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
 // See: https://platform.openai.com/docs/guides/prompt-caching
-func (cb *ContextBuilder) buildDynamicContext(channel, chatID string) string {
+func (cb *ContextBuilder) buildDynamicContext(channel, chatID, senderID, senderDisplayName string) string {
 	now := time.Now().Format("2006-01-02 15:04 (Monday)")
 	rt := fmt.Sprintf("%s %s, Go %s", runtime.GOOS, runtime.GOARCH, runtime.Version())
 
@@ -467,6 +467,18 @@ func (cb *ContextBuilder) buildDynamicContext(channel, chatID string) string {
 
 	if channel != "" && chatID != "" {
 		fmt.Fprintf(&sb, "\n\n## Current Session\nChannel: %s\nChat ID: %s", channel, chatID)
+	}
+
+	if senderID != "" || senderDisplayName != "" {
+		var senderLine string
+		if senderDisplayName != "" && senderID != "" {
+			senderLine = fmt.Sprintf("Current sender: %s (ID: %s)", senderDisplayName, senderID)
+		} else if senderDisplayName != "" {
+			senderLine = "Current sender: " + senderDisplayName
+		} else {
+			senderLine = "Current sender: " + senderID
+		}
+		fmt.Fprintf(&sb, "\n\n## Current Sender\n%s", senderLine)
 	}
 
 	return sb.String()
@@ -478,6 +490,7 @@ func (cb *ContextBuilder) BuildMessages(
 	currentMessage string,
 	media []string,
 	channel, chatID string,
+	senderID, senderDisplayName string,
 ) []providers.Message {
 	messages := []providers.Message{}
 
@@ -492,8 +505,8 @@ func (cb *ContextBuilder) BuildMessages(
 	// - OpenAI-compat passes messages through as-is.
 	staticPrompt := cb.BuildSystemPromptWithCache()
 
-	// Build short dynamic context (time, runtime, session) — changes per request
-	dynamicCtx := cb.buildDynamicContext(channel, chatID)
+	// Build short dynamic context (time, runtime, session, sender) — changes per request
+	dynamicCtx := cb.buildDynamicContext(channel, chatID, senderID, senderDisplayName)
 
 	// Compose a single system message: static (cached) + dynamic + optional summary.
 	// Keeping all system content in one message ensures every provider adapter can

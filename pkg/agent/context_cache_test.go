@@ -82,7 +82,7 @@ func TestSingleSystemMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msgs := cb.BuildMessages(tt.history, tt.summary, tt.message, nil, "test", "chat1")
+			msgs := cb.BuildMessages(tt.history, tt.summary, tt.message, nil, "test", "chat1", "", "")
 
 			systemCount := 0
 			for _, m := range msgs {
@@ -121,6 +121,67 @@ func TestSingleSystemMessage(t *testing.T) {
 				if strings.Contains(sys, "CONTEXT_SUMMARY:") {
 					t.Error("CONTEXT_SUMMARY should not appear without summary")
 				}
+			}
+		})
+	}
+}
+
+// TestBuildMessages_CurrentSender verifies that sender info appears in the dynamic context
+// with the agreed display format: "Current sender: DisplayName (ID: id)" / name only / id only.
+func TestBuildMessages_CurrentSender(t *testing.T) {
+	tmpDir := setupWorkspace(t, map[string]string{
+		"IDENTITY.md": "# Identity\nTest agent.",
+	})
+	defer os.RemoveAll(tmpDir)
+
+	cb := NewContextBuilder(tmpDir)
+
+	tests := []struct {
+		name             string
+		senderID         string
+		senderDisplayName string
+		wantInSystem     string // substring that must appear in system message
+		noWantInSystem   string // substring that must NOT appear (e.g. "(ID:" when ID is empty)
+	}{
+		{
+			name:             "both name and id",
+			senderID:         "ou_xxx",
+			senderDisplayName: "张三",
+			wantInSystem:     "## Current Sender\nCurrent sender: 张三 (ID: ou_xxx)",
+		},
+		{
+			name:             "display name only",
+			senderID:         "",
+			senderDisplayName: "李四",
+			wantInSystem:     "## Current Sender\nCurrent sender: 李四",
+			noWantInSystem:   "(ID:",
+		},
+		{
+			name:             "id only",
+			senderID:         "ou_yyy",
+			senderDisplayName: "",
+			wantInSystem:     "## Current Sender\nCurrent sender: ou_yyy",
+		},
+		{
+			name:             "no sender omits section",
+			senderID:         "",
+			senderDisplayName: "",
+			noWantInSystem:   "Current Sender",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msgs := cb.BuildMessages(nil, "", "hi", nil, "test", "chat1", tt.senderID, tt.senderDisplayName)
+			if len(msgs) < 1 {
+				t.Fatal("expected at least system message")
+			}
+			sys := msgs[0].Content
+			if tt.wantInSystem != "" && !strings.Contains(sys, tt.wantInSystem) {
+				t.Errorf("system message missing expected sender block: %q", tt.wantInSystem)
+			}
+			if tt.noWantInSystem != "" && strings.Contains(sys, tt.noWantInSystem) {
+				t.Errorf("system message should not contain %q", tt.noWantInSystem)
 			}
 		})
 	}
@@ -576,7 +637,7 @@ func TestConcurrentBuildSystemPromptWithCache(t *testing.T) {
 				}
 
 				// Also exercise BuildMessages concurrently
-				msgs := cb.BuildMessages(nil, "", "hello", nil, "test", "chat")
+				msgs := cb.BuildMessages(nil, "", "hello", nil, "test", "chat", "", "")
 				if len(msgs) < 2 {
 					errs <- "BuildMessages returned fewer than 2 messages"
 					return
@@ -664,6 +725,6 @@ func BenchmarkBuildMessagesWithCache(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = cb.BuildMessages(history, "summary", "new message", nil, "cli", "test")
+		_ = cb.BuildMessages(history, "summary", "new message", nil, "cli", "test", "", "")
 	}
 }
